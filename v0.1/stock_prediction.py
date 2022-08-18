@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import pandas_datareader as web
 import datetime as dt
-import tensorflow as tf
+import tensorflow as tf 
 
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras.models import Sequential
@@ -36,8 +36,8 @@ from tensorflow.keras.layers import Dense, Dropout, LSTM, InputLayer
 DATA_SOURCE = "yahoo"
 COMPANY = "FB"
 
-TRAIN_START = dt.datetime(2012, 5, 23)     # Start date to read
-TRAIN_END = dt.datetime(2020, 1, 7)       # End date to read
+TRAIN_START = dt.datetime(2012, 1, 1)     # Start date to read
+TRAIN_END = dt.datetime(2020, 1, 1)       # End date to read
 
 data = web.DataReader(COMPANY, DATA_SOURCE, TRAIN_START, TRAIN_END) # Read data using yahoo
 # It could be a bug with pandas_datareader.DataReader() but it
