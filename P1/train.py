@@ -1,3 +1,5 @@
+from ast import Eq
+from re import I, T
 from stock_prediction import create_model, load_data, my_load_data
 from tensorflow.keras.layers import LSTM
 from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
@@ -23,7 +25,7 @@ data = my_load_data(ticker, dt.datetime(2012, 1, 1), dt.datetime(2020, 1, 1) ,N_
                 feature_columns=FEATURE_COLUMNS)
 
 # save the dataframe
-data["df"].to_csv(ticker_data_filename)
+#data["df"].to_csv(ticker_data_filename)
 
 # construct the model
 model = create_model(N_STEPS, len(FEATURE_COLUMNS), loss=LOSS, units=UNITS, cell=CELL, n_layers=N_LAYERS,

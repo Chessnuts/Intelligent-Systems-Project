@@ -6,6 +6,7 @@ from sklearn.model_selection import train_test_split
 from yahoo_fin import stock_info as si
 from collections import deque
 
+
 import numpy as np
 import pandas as pd
 import datetime as dt
@@ -26,7 +27,7 @@ def shuffle_in_unison(a, b):
 
 
 def load_data(ticker, n_steps=50, scale=True, shuffle=True, lookup_step=1, split_by_date=True,
-                test_size=0.2, feature_columns=['adjclose', 'volume', 'open', 'high', 'low']):
+                test_size=0.2, feature_columns=['adjclose', 'volume', 'open', 'high', 'low'], ):
     """
     Loads data from Yahoo Finance source, as well as scaling, shuffling, normalizing and splitting.
     Params:
@@ -63,13 +64,16 @@ def load_data(ticker, n_steps=50, scale=True, shuffle=True, lookup_step=1, split
     if "date" not in df.columns:
         df["date"] = df.index
 
+    #scaling
     if scale:
-        column_scaler = {}
+        column_scaler = {}#scaler data
         # scale the data (prices) from 0 to 1
         for column in feature_columns:
+            #the scaler object
             scaler = preprocessing.MinMaxScaler()
+            #scale the iterated column
             df[column] = scaler.fit_transform(np.expand_dims(df[column].values, axis=1))
-            column_scaler[column] = scaler
+            column_scaler[column] = scaler #add a scaler column
 
         # add the MinMaxScaler instances to the result returned
         result["column_scaler"] = column_scaler
@@ -124,7 +128,7 @@ def load_data(ticker, n_steps=50, scale=True, shuffle=True, lookup_step=1, split
     else:    
         # split the dataset randomly
         result["X_train"], result["X_test"], result["y_train"], result["y_test"] = train_test_split(X, y, 
-                                                                                test_size=test_size, shuffle=shuffle)
+                                                                                )
 
     # get the list of test set dates
     dates = result["X_test"][:, -1, -1]
@@ -139,7 +143,7 @@ def load_data(ticker, n_steps=50, scale=True, shuffle=True, lookup_step=1, split
     return result
 
 #my function for loading data for Intelligent Systems COS30018 Task B.2
-def my_load_data(ticker, start_date, end_date, n_steps=50, scale=True, shuffle=True, lookup_step=1, split_by_date=True,
+def my_load_data(ticker, start_date, end_date, saving=True, n_steps=50, scale=True, shuffle=True, lookup_step=1, split_by_date=True,
                 test_size=0.2, feature_columns=['adjclose', 'volume', 'open', 'high', 'low']):
 
     #check if data has been loaded before by xhecking if it's a string or dataframe
@@ -169,12 +173,16 @@ def my_load_data(ticker, start_date, end_date, n_steps=50, scale=True, shuffle=T
 
     #if scale variable is true, scale down data for use (like in v0.01)
     if scale:
+        #dictionary for storing scalers 
         column_scaler = {}
         # scale the data (prices) from 0 to 1
+        #loop to cycle through the columns
         for column in feature_columns:
-            scaler = preprocessing.MinMaxScaler()
+            scaler = preprocessing.MinMaxScaler() #Assign an new scaler
+            #scale the data in the dataframe
             df[column] = scaler.fit_transform(np.expand_dims(df[column].values, axis=1))
-            column_scaler[column] = scaler
+            #store the scaler in the ditionary
+            column_scaler[column] = scaler 
 
         # add the MinMaxScaler instances to the result returned
         result["column_scaler"] = column_scaler
@@ -213,20 +221,21 @@ def my_load_data(ticker, start_date, end_date, n_steps=50, scale=True, shuffle=T
         y.append(target)
 
     # convert to numpy arrays
-    X = np.array(X)
-    y = np.array(y)
+    X = np.array(X) #last 60 days
+    y = np.array(y) #future day
 
+    #split up the data into train and test data based on the parameters
     if split_by_date:
         # split the dataset into training & testing sets by date (not randomly splitting)
-        train_samples = int((1 - test_size) * len(X))
-        result["X_train"] = X[:train_samples]
-        result["y_train"] = y[:train_samples]
-        result["X_test"]  = X[train_samples:]
-        result["y_test"]  = y[train_samples:]
+        train_samples = int((1 - test_size) * len(X)) #int value for tranng the data based on the test size and length of X
+        result["X_train"] = X[:train_samples] # training data
+        result["y_train"] = y[:train_samples] # prediction training data
+        result["X_test"]  = X[train_samples:] # testing data
+        result["y_test"]  = y[train_samples:] # prediction testing data
         if shuffle:
             # shuffle the datasets for training (if shuffle parameter is set)
-            shuffle_in_unison(result["X_train"], result["y_train"])
-            shuffle_in_unison(result["X_test"], result["y_test"])
+            shuffle_in_unison(result["X_train"], result["y_train"]) 
+            shuffle_in_unison(result["X_test"], result["y_test"])   
     else:    
         # split the dataset randomly
         result["X_train"], result["X_test"], result["y_train"], result["y_test"] = train_test_split(X, y, 
@@ -241,6 +250,16 @@ def my_load_data(ticker, start_date, end_date, n_steps=50, scale=True, shuffle=T
     # remove dates from the training/testing sets & convert to float32
     result["X_train"] = result["X_train"][:, :, :len(feature_columns)].astype(np.float32)
     result["X_test"] = result["X_test"][:, :, :len(feature_columns)].astype(np.float32)
+
+    ticker_data_filename = "B2TickerData"
+    scaler_data_filename = "B2ScalerData"
+
+    if saving:
+        #save the data
+        result['df'].to_csv(ticker_data_filename) #save dataframe in csv format
+        if scale:
+            result["column_scaler"].to_csv(scaler_data_filename) #save the scaler
+
 
     #return the results
     return result
