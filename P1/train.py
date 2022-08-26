@@ -1,7 +1,8 @@
-from stock_prediction import create_model, load_data
+from stock_prediction import create_model, load_data, my_load_data
 from tensorflow.keras.layers import LSTM
 from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
 import os
+import datetime as dt
 import pandas as pd
 from parameters import *
 
@@ -17,7 +18,7 @@ if not os.path.isdir("data"):
     os.mkdir("data")
 
 # load the data
-data = load_data(ticker, N_STEPS, scale=SCALE, split_by_date=SPLIT_BY_DATE, 
+data = my_load_data(ticker, dt.datetime(2012, 1, 1), dt.datetime(2020, 1, 1) ,N_STEPS, scale=SCALE, split_by_date=SPLIT_BY_DATE, 
                 shuffle=SHUFFLE, lookup_step=LOOKUP_STEP, test_size=TEST_SIZE, 
                 feature_columns=FEATURE_COLUMNS)
 
