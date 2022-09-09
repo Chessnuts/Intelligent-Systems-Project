@@ -243,7 +243,7 @@ predicted_prices = scaler.inverse_transform(predicted_prices)
 #------------------------------------------------------------------------------
 
 plt.plot(actual_prices, color="black", label=f"Actual {COMPANY} Price")
-plt.plot(predicted_prices, color="green", label=f"Predicted {COMPANY} Price")
+plt.plot(predicted_prices, color="#800080", label=f"Predicted {COMPANY} Price")
 plt.title(f"{COMPANY} Share Price")
 plt.xlabel("Time")
 plt.ylabel(f"{COMPANY} Share Price")
