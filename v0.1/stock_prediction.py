@@ -61,6 +61,7 @@ scaler = MinMaxScaler(feature_range=(0, 1))
 # Note that, by default, feature_range=(0, 1). Thus, if you want a different 
 # feature_range (min,max) then you'll need to specify it here
 scaled_data = scaler.fit_transform(data[PRICE_VALUE].values.reshape(-1, 1)) 
+print(scaled_data)
 # Flatten and normalise the data
 # First, we reshape a 1D array(n) to 2D array(n,1)
 # We have to do that because sklearn.preprocessing.fit_transform()

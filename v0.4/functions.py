@@ -1,11 +1,5 @@
-###########################################################################################################
-# Stock Prediction Model
-#
-# Created by Ryan Chessum (102564760) for Intelligent Systems COS30018 @ Swinburne University of Technology
-#
-###########################################################################################################
+
 import tensorflow as tf
-from functions import shuffle_in_unison
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout, Bidirectional, SimpleRNN, GRU
 from sklearn import preprocessing
@@ -21,11 +15,17 @@ import pandas as pd
 import datetime as dt
 import random
 
-import functions
+#shuffle in unison from P1
+def shuffle_in_unison(a, b):
+    # shuffle two arrays in the same way
+    state = np.random.get_state()
+    np.random.shuffle(a)
+    np.random.set_state(state)
+    np.random.shuffle(b)
 
-#Load data off the web to be used in the model
+#multistep
 def load_data(ticker, start_date, end_date, saving=True, n_steps=60, scale=True, shuffle=True, lookup_step=1, split_by_date=True,
-                test_size=0.2, feature_columns=['adjclose', 'close', 'volume', 'open', 'high', 'low']):
+                test_size=0.2, feature_columns=['adjclose', 'close', 'volume', 'open', 'high', 'low'], t='adjclose'):
 
     #store data we want to rerurn in this variable
     results = {}
@@ -67,7 +67,7 @@ def load_data(ticker, start_date, end_date, saving=True, n_steps=60, scale=True,
         results["column_scaler"] = column_scaler
 
     # add the target column (label) by shifting by `lookup_step`
-    data_frame['future'] = data_frame['adjclose'].shift(-lookup_step)
+    data_frame['future'] = data_frame[t].shift(-lookup_step)
 
     # last `lookup_step` columns contains NaN in future column
     # get them before droping NaNs
@@ -141,70 +141,6 @@ def load_data(ticker, start_date, end_date, saving=True, n_steps=60, scale=True,
 
     return results 
 
-def candlestick_data(data, n=60):
-
-    #make sure that n is not less than 1
-    if n < 1:
-        n = 1
-    
-    #refactors the data with a new frequency 
-    plot_data = data.asfreq(str(n) + 'D') 
-    #uses pandas dataframe function asfreq
-    #returns a new dataframe with adjusted values to the specified new frequency
-    # https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.asfreq.html
-    #string formatting for n + days
-    #we could also specify weeks or years if we wanted. To do this change 'D' to 'W' or 'Y'
-
-
-
-    #Plot the graph
-    fplt.plot(plot_data, type='candle', title='facebook stock price', ylabel='Price ($)',
-            style='charles', volume=True, ylabel_lower='shares\nTraded',
-            show_nontrading=False)
-    #   data is the data loaded from the load_data function
-    #   type is the type of graph, since we want a candle graph we specify candle
-    #   title is the heading of our graph, Keeping it simple with facebook stock
-    #   y label is the label on the Y axis of our graph
-    #   style specifies a style preset, 'charles' seemed like a nice one as it represents the data as red or green depending on how the price changed
-    #   volume adds a bar chart at the bottom of the graph which shows how much stock was traded on that day
-    #   y label lowe adds another label at the bottom of the y axis, we can use this to label the trade volume
-    #   show nontrading puts a gap on days when the market is closed
-    
-    return
-
-def boxplot_data(data, n=60, rolling=60):
-    
-    #make sure that n is not less than 1
-    if n < 1:
-        n = 1
-
-    #plot data
-    plot_data = data['close'].to_frame()
-
-    #add a column for the average
-    #we can use the rolling and mean functions to get the moving average
-    plot_data['moving_average'] = plot_data.rolling(rolling).mean() # in is our parameter of how many days we want to use for our moving average
-
-    #because we need multiple days to find the moving average we end up with NaN values. 
-    #so we need to drop them
-    plot_data.dropna(inplace=True)
-
-    #only show last n days
-    plot_data = plot_data.iloc[len(plot_data['moving_average']) - n: , : ]
-
-    #print(plot_data)
-
-    #show plots as a window turned on
-    plt.ion()
-    #plot the moving window data
-    plt.boxplot(plot_data['moving_average'])
-
-    #input so I can see the plot before it dissapears
-    input()
-
-    return
-
-
 
 def create_model(sequence_length, n_features, units=256, cell=LSTM, n_layers=2, dropout=0.3,
                 loss="mean_absolute_error", optimizer="rmsprop", bidirectional=False):
@@ -254,3 +190,65 @@ def create_model(sequence_length, n_features, units=256, cell=LSTM, n_layers=2, 
     #compire the model
     model.compile(loss=loss, metrics=["mean_absolute_error"], optimizer=optimizer)
     return model
+
+def multistep_prediction(adjclose, close, volume, op, high, low, data, n_steps, k = 1, scale=True, target='adjclose'):
+    #list of predictions
+    results = []
+    # retrieve the last sequence from data
+    last_sequence = data["last_sequence"][-n_steps:]
+    # expand dimension
+    last_sequence = np.expand_dims(last_sequence, axis=0)
+
+    i = 0
+
+    while i < k:
+        predictions = []
+        #make a prediction
+        ac_p = adjclose.predict(last_sequence)
+        c_p = close.predict(last_sequence)
+        v_p = volume.predict(last_sequence)
+        o_p = op.predict(last_sequence)
+        h_p = high.predict(last_sequence)
+        l_p = low.predict(last_sequence)
+        predictions.append(ac_p[0][0])
+        predictions.append(c_p[0][0])
+        predictions.append(v_p[0][0])
+        predictions.append(o_p[0][0])
+        predictions.append(h_p[0][0])
+        predictions.append(l_p[0][0])
+
+        preds = np.array(predictions).astype(np.float32)
+        preds = np.expand_dims(preds, axis=0)
+
+        #remove first item in last sequence
+        ls = np.delete(last_sequence[0], 0, axis=0)
+        #add predictions
+        ls = np.append(ls, preds, axis=0)
+        last_sequence[0] = ls
+
+        #add desired preds to results
+        
+        if scale:
+            ac_p = data["column_scaler"]["adjclose"].inverse_transform(ac_p)
+            c_p = data["column_scaler"]["close"].inverse_transform(c_p)
+            v_p = data["column_scaler"]["volume"].inverse_transform(v_p)
+            o_p = data["column_scaler"]["open"].inverse_transform(o_p)
+            h_p = data["column_scaler"]["high"].inverse_transform(h_p)
+            l_p = data["column_scaler"]["low"].inverse_transform(l_p)
+        
+        if target == "adjclose":
+            results.append(ac_p)
+        if target == "close":
+            results.append(c_p)
+        if target == "volume":
+            results.append(v_p)
+        if target == "open":
+            results.append(o_p)
+        if target == "high":
+            results.append(h_p)
+        if target == "low":
+            results.append(l_p)
+
+        i += 1
+
+    return results
