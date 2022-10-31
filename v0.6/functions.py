@@ -1,13 +1,8 @@
-###########################################################################################################
-# Stock Prediction Model
-#
-# Created by Ryan Chessum (102564760) for Intelligent Systems COS30018 @ Swinburne University of Technology
-#
-###########################################################################################################
+
+from unittest import result
 import tensorflow as tf
-from functions import shuffle_in_unison
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout, Bidirectional
+from tensorflow.keras.layers import LSTM, Dense, Dropout, Bidirectional, SimpleRNN, GRU
 from sklearn import preprocessing
 from sklearn.model_selection import train_test_split
 from yahoo_fin import stock_info as si
@@ -15,17 +10,26 @@ from collections import deque
 import mplfinance as fplt
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import tensorflow
+from statsmodels.tsa.arima.model import ARIMA
+from pmdarima.arima.utils import ndiffs
+from sklearn.metrics import mean_squared_error
 
 import numpy as np
 import pandas as pd
 import datetime as dt
 import random
 
-import functions
+#shuffle in unison from P1
+def shuffle_in_unison(a, b):
+    # shuffle two arrays in the same way
+    state = np.random.get_state()
+    np.random.shuffle(a)
+    np.random.set_state(state)
+    np.random.shuffle(b)
 
-#Load data off the web to be used in the model
-def load_data(ticker, start_date, end_date, saving=True, n_steps=50, scale=True, shuffle=True, lookup_step=1, split_by_date=True,
-                test_size=0.2, feature_columns=['adjclose', 'volume', 'open', 'high', 'low']):
+def load_data(ticker, start_date, end_date, saving=True, n_steps=60, scale=True, shuffle=True, lookup_step=1, split_by_date=True,
+                test_size=0.2, feature_columns=['adjclose', 'close', 'volume', 'open', 'high', 'low'], t='adjclose'):
 
     #store data we want to rerurn in this variable
     results = {}
@@ -67,7 +71,7 @@ def load_data(ticker, start_date, end_date, saving=True, n_steps=50, scale=True,
         results["column_scaler"] = column_scaler
 
     # add the target column (label) by shifting by `lookup_step`
-    data_frame['future'] = data_frame['adjclose'].shift(-lookup_step)
+    data_frame['future'] = data_frame[t].shift(-lookup_step)
 
     # last `lookup_step` columns contains NaN in future column
     # get them before droping NaNs
@@ -130,8 +134,156 @@ def load_data(ticker, start_date, end_date, saving=True, n_steps=50, scale=True,
     results["X_train"] = results["X_train"][:, :, :len(feature_columns)].astype(np.float32)
     results["X_test"] = results["X_test"][:, :, :len(feature_columns)].astype(np.float32)
 
+    ticker_data_filename = "B3TickerData"
+    scaler_data_filename = "B3ScalerData"
+
+    if saving:
+        #save the data
+        results['data_frame'].to_csv(ticker_data_filename) #save dataframe in csv format
+        if scale:
+            results["column_scaler"].to_csv(scaler_data_filename) #save the scaler
 
     return results 
+
+
+def create_model(sequence_length, n_features, units=256, cell=LSTM, n_layers=2, dropout=0.3,
+                loss="mean_absolute_error", optimizer="rmsprop", bidirectional=False):
+
+    #Variables:
+    ##################
+    # sequence length: no of days for lookback
+    # n_features:no of feature columns
+    # units:number of nodes in each layer
+    # cell: cell type
+    # n_layers: number of layers
+    # dropout: drop out frequency
+    # loss: loss metric
+    # optimizer: what optimizer we want to use
+    # bidirectional: bidirectional y/n
+    ###################################### 
+                
+    #create a sequential model
+    model = Sequential()
+
+    #Create amount of layers equal to n_layers
+    for i in range(n_layers):
+        if i == 0:
+            # first layer
+            if bidirectional:
+                #set the input layer if first layer
+                model.add(Bidirectional(cell(units, return_sequences=True), batch_input_shape=(None, sequence_length, n_features)))
+            else:
+                #if not bidirectional
+                model.add(cell(units, return_sequences=True, batch_input_shape=(None, sequence_length, n_features)))
+        elif i == n_layers - 1:
+            # last layer
+            if bidirectional:
+                #no return sequences on last layer
+                model.add(Bidirectional(cell(units, return_sequences=False)))
+            else:
+                model.add(cell(units, return_sequences=False))
+        else:
+            if bidirectional: #if bidirectional 
+                model.add(Bidirectional(cell(units, return_sequences=True)))
+            else:#if not bidirectional
+                model.add(cell(units, return_sequences=True))
+        # add dropout after each layer
+        model.add(Dropout(dropout))
+    #final layer, specify linear activation function
+    model.add(Dense(1, activation="linear"))
+    #compire the model
+    model.compile(loss=loss, metrics=["mean_absolute_error"], optimizer=optimizer)
+    return model
+
+def multistep_prediction(adjclose, close, volume, op, high, low, data, n_steps, k = 1, scale=True, target='close'):
+    #list of predictions
+    results = []
+    # retrieve the last sequence from data
+    last_sequence = data["last_sequence"][-n_steps:]
+    # expand dimension
+    last_sequence = np.expand_dims(last_sequence, axis=0)
+
+    i = 0
+
+    while i < k:
+        predictions = []
+        #make a prediction
+        ac_p = adjclose.predict(last_sequence)
+        c_p = close.predict(last_sequence)
+        v_p = volume.predict(last_sequence)
+        o_p = op.predict(last_sequence)
+        h_p = high.predict(last_sequence)
+        l_p = low.predict(last_sequence)
+        predictions.append(ac_p[0][0])
+        predictions.append(c_p[0][0])
+        predictions.append(v_p[0][0])
+        predictions.append(o_p[0][0])
+        predictions.append(h_p[0][0])
+        predictions.append(l_p[0][0])
+
+        preds = np.array(predictions).astype(np.float32)
+        preds = np.expand_dims(preds, axis=0)
+
+        #remove first item in last sequence
+        ls = np.delete(last_sequence[0], 0, axis=0)
+        #add predictions
+        ls = np.append(ls, preds, axis=0)
+        last_sequence[0] = ls
+
+        #add desired preds to results
+        
+        if scale:
+            ac_p = data["column_scaler"]["adjclose"].inverse_transform(ac_p)
+            c_p = data["column_scaler"]["close"].inverse_transform(c_p)
+            v_p = data["column_scaler"]["volume"].inverse_transform(v_p)
+            o_p = data["column_scaler"]["open"].inverse_transform(o_p)
+            h_p = data["column_scaler"]["high"].inverse_transform(h_p)
+            l_p = data["column_scaler"]["low"].inverse_transform(l_p)
+        
+        if target == "adjclose":
+            results.append(ac_p)
+        if target == "close":
+            results.append(c_p)
+        if target == "volume":
+            results.append(v_p)
+        if target == "open":
+            results.append(o_p)
+        if target == "high":
+            results.append(h_p)
+        if target == "low":
+            results.append(l_p)
+
+        i += 1
+
+    return results
+
+def create_arima_model(data, target="close"):
+
+    #get training data
+    training_data = data["data_frame"][target].values
+    #get raw values
+    td = [x for x in training_data]
+
+    #create arima model
+    model = ARIMA(td, order=(1, 1, 0))
+    #fit the model
+    fitted_model = model.fit()
+
+    #return the model
+    return fitted_model
+
+def ensemble_prediction(predictions):
+    #calculate the average of all predictions
+    result = 0
+
+    #add predictions
+    for p in predictions:
+        result += p
+
+    #divide by number of predictions to find average
+    result = result / len(predictions)
+
+    return result
 
 def candlestick_data(data, n=60):
 
